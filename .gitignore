@@ -1,0 +1,6 @@
+.mxproject
+.cproject
+.project
+.settings
+Debug/
+* Debug.launch
