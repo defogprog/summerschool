@@ -57,17 +57,26 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LEDR_Pin GPIO_PIN_1
-#define LEDR_GPIO_Port GPIOA
-#define BUTTON_Pin GPIO_PIN_7
-#define BUTTON_GPIO_Port GPIOA
-#define BUTTON_EXTI_IRQn EXTI9_5_IRQn
-#define LEDY_Pin GPIO_PIN_1
-#define LEDY_GPIO_Port GPIOB
-#define LEDG_Pin GPIO_PIN_2
-#define LEDG_GPIO_Port GPIOB
+#define POT_Pin GPIO_PIN_0
+#define POT_GPIO_Port GPIOA
+#define RED_Pin GPIO_PIN_1
+#define RED_GPIO_Port GPIOA
+#define GREEN_Pin GPIO_PIN_1
+#define GREEN_GPIO_Port GPIOB
+#define YELLOW_Pin GPIO_PIN_2
+#define YELLOW_GPIO_Port GPIOB
+#define BUTTON_Pin GPIO_PIN_10
+#define BUTTON_GPIO_Port GPIOB
+#define BUTTON_EXTI_IRQn EXTI15_10_IRQn
+#define PGREEN_Pin GPIO_PIN_9
+#define PGREEN_GPIO_Port GPIOA
+#define PRED_Pin GPIO_PIN_10
+#define PRED_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
-
+typedef enum {
+	ROAD,
+	PEDESTRIAN
+}STATES_t;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
