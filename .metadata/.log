@@ -1,0 +1,18 @@
+!SESSION 2022-08-08 17:14:48.726 -----------------------------------------------
+eclipse.buildId=Version 1.10.1
+java.version=11.0.14.1
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=win32, ARCH=x86_64, WS=win32, NL=ru_RU
+Command-line arguments:  -os win32 -ws win32 -arch x86_64 -data C:\Users\dell\Desktop\Ajax_school\summerschool
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 4 4 2022-08-08 17:15:01.442
+!MESSAGE CubeMX plugin appears to be active, Log4j initialization might be too late.
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 1 1 2022-08-08 17:15:01.591
+!MESSAGE Log4j initialized with config file C:\Users\dell\Desktop\Ajax_school\summerschool\.metadata\.log4j.xml
+
+!ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2022-08-08 17:15:07.383
+!MESSAGE Started RMI Server, listening on port 41337
+
+!ENTRY org.eclipse.cdt.core 1 0 2022-08-08 17:16:50.270
+!MESSAGE Indexed 'summerschool_project' (24 sources, 86 headers) in 6.08 sec: 6,007 declarations; 39,637 references; 0 unresolved inclusions; 1 syntax errors; 2 unresolved names (0.0044%)
