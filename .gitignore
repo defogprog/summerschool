@@ -1,0 +1,4 @@
+#ignore Debug folder
+Debug/
+
+.project/
