@@ -327,7 +327,7 @@ static void MX_GPIO_Init(void)
 __weak void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-	if(count > 0 && count < -35)
+	if(count > -5)
 	{
 		count = 45;
 	}
