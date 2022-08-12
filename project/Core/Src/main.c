@@ -21,7 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <stdlib.h>
+#include "baro.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,6 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define countof(_a) (sizeof(_a)/sizeof(_a[0]))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -39,6 +44,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
+UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
@@ -47,7 +55,36 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
+
+#define maxSamples 200
+static int32_t filter(int32_t sample)
+{
+	static int32_t arr[maxSamples] = {0};
+	static uint32_t runner = 0;
+	static uint8_t filled = 0;
+
+	arr[runner] = sample;
+
+	if (filled < maxSamples)
+		++filled;
+
+	if (++runner == maxSamples)
+		runner = 0;
+
+	int64_t avg = 0;
+
+	for (uint32_t i = 0; i < filled; i++)
+	{
+		avg += arr[i];
+	}
+
+	avg /= filled;
+
+	return (int32_t)avg;
+}
 
 /* USER CODE END PFP */
 
@@ -63,7 +100,7 @@ static void MX_GPIO_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	uint32_t cnt = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -84,46 +121,43 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_USART1_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  char text[100] = {0};
+  if (baro_init() != BARO_OK)
+  {
+	  snprintf(text, countof(text), "Error init baro\n");
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
+	  while(1){};
+  }
 
-  //HAL_ADC_Start(&hadc1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  uint8_t buttonPressed = 0;
+  /*int32_t signal = {0};
+  int32_t signalNoised = {0};
+  int32_t signalFiltered  = {0};*/
+
   while (1)
   {
-	  if (HAL_GPIO_ReadPin(TRAFFIC_YELLOW_GPIO_Port, TRAFFIC_YELLOW_Pin) == GPIO_PIN_RESET)
-	  {
-		  if (!buttonPressed)
-		  {
-			  buttonPressed = 1;
-			  continue;
-		  }
+	  /*signal = sin((3.14 * cnt) / 1000.0) * 50 + 50;
+	  signalNoised = signal+(rand()%20)-10;
+	  signalFiltered = filter(signalNoised);*/
 
-		  for (int i = 0; i < 2; i++)
-		  {
-			  HAL_Delay(2000);
+	  //sprintf(text, "/*%ld,%ld,%ld*/\n", signal, signalNoised, signalFiltered);
+	  /*cnt++;
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), 1000);
 
-			  HAL_GPIO_TogglePin(TRAFFIC_YELLOW_GPIO_Port, TRAFFIC_YELLOW_Pin);
-			  HAL_GPIO_TogglePin(TRAFFIC_RED_GPIO_Port, TRAFFIC_RED_Pin);
+	  HAL_Delay(1);*/
 
-			  HAL_GPIO_TogglePin(USER_RED_GPIO_Port, USER_RED_Pin);
-			  HAL_GPIO_TogglePin(USER_GREEN_GPIO_Port, USER_GREEN_Pin);
-		  }
+	  int32_t temp = baro_read_temp();
+	  int32_t pres = baro_read_press();
+	  snprintf(text, countof(text), "/*%ld.%02ld,%ld.%02ld*/\n", temp/100, temp%100, pres/100, pres%100);
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), 1000);
 
-		  buttonPressed = 0;
-
-		  HAL_Delay(2000);
-		  HAL_GPIO_WritePin(TRAFFIC_YELLOW_GPIO_Port, TRAFFIC_YELLOW_Pin, GPIO_PIN_SET);
-	  }
-
-	  HAL_GPIO_WritePin(TRAFFIC_GREEN_GPIO_Port, TRAFFIC_GREEN_Pin, GPIO_PIN_RESET);
-	  HAL_GPIO_WritePin(USER_RED_GPIO_Port, USER_RED_Pin, GPIO_PIN_RESET);
-
-	  HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -177,6 +211,73 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -188,15 +289,11 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, USER_RED_Pin|USER_GREEN_Pin|TRAFFIC_GREEN_Pin|TRAFFIC_YELLOW_Pin
-                          |TRAFFIC_RED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
@@ -205,18 +302,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : USER_RED_Pin USER_GREEN_Pin TRAFFIC_GREEN_Pin TRAFFIC_YELLOW_Pin
-                           TRAFFIC_RED_Pin */
-  GPIO_InitStruct.Pin = USER_RED_Pin|USER_GREEN_Pin|TRAFFIC_GREEN_Pin|TRAFFIC_YELLOW_Pin
-                          |TRAFFIC_RED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pin : BUTTON_Pin */
   GPIO_InitStruct.Pin = BUTTON_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
 
@@ -227,14 +315,44 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+/*
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	if (HAL_GPIO_ReadPin(TRAFFIC_GREEN_GPIO_Port, TRAFFIC_GREEN_Pin) == GPIO_PIN_RESET)
+	if (htim == &htim2)
 	{
-		HAL_GPIO_WritePin(TRAFFIC_GREEN_GPIO_Port, TRAFFIC_GREEN_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(TRAFFIC_YELLOW_GPIO_Port, TRAFFIC_YELLOW_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 	}
 }
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == BUTTON_Pin)
+	{
+		if (HAL_GPIO_ReadPin(BUTTON_GPIO_Port, BUTTON_Pin) == GPIO_PIN_SET)
+		{
+			__HAL_TIM_SET_COUNTER(&htim3, 0);
+			HAL_TIM_Base_Start(&htim3);
+		}
+		else
+		{
+			HAL_TIM_Base_Stop(&htim3);
+
+			uint32_t cnt = __HAL_TIM_GET_COUNTER(&htim3);
+			if (cnt < 2000)
+			{
+				__HAL_TIM_SET_AUTORELOAD(&htim2, 49999);
+				__HAL_TIM_SET_COUNTER(&htim2, 0);
+			}
+			else
+			{
+				__HAL_TIM_SET_AUTORELOAD(&htim2, 9999);
+				__HAL_TIM_SET_COUNTER(&htim2, 0);
+			}
+		}
+
+	}
+}
+*/
 /* USER CODE END 4 */
 
 /**
