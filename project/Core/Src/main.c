@@ -21,9 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>	// sprintf_s
-#include <string.h>	// strnlen_s, memset
+#include "baro.h"
+#include <stdio.h>	// snprintf
+#include <string.h>	// memset
 #include <math.h>	// sinf
+#include <stdlib.h>	// rand
 
 /* USER CODE END Includes */
 
@@ -64,6 +66,26 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define WIN_SIZE	200
+static int32_t filter(uint32_t data) {
+	static int32_t buff[WIN_SIZE] = {0};
+	static int32_t slider = 0, filled = 0;
+	int64_t sum = 0;
+
+	buff[slider] = data;
+
+	if (++slider == WIN_SIZE)
+		slider = 0;
+	if (filled < (WIN_SIZE - 1)) {
+		filled++;
+	}
+
+	for (uint32_t i = 0; i < filled; i++) {
+		sum += buff[(slider + i) % WIN_SIZE];
+	}
+
+	return sum / filled;
+}
 
 /* USER CODE END 0 */
 
@@ -74,6 +96,8 @@ static void MX_USART1_UART_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	char text[100] = {0};
+//	uint8_t cnt = 0;
 
   /* USER CODE END 1 */
 
@@ -100,35 +124,43 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  if (baro_init() != BARO_OK) {
+	  snprintf(text, sizeof(text), "Error initializing baro\n");
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, sizeof(text)), 1000);
+	  while (1) {}
+  }
+
+  int32_t signal = 0, signal_noisy = 0, signal_filtered = 0;
+  uint32_t cnt = 0;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  char text[100] = {0};
-  uint8_t cnt = 0;
-
   while (1)
   {
-	  sprintf(text, "Hello world, %d\n", cnt++);
-	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), HAL_MAX_DELAY);
+//	  int32_t temp = baro_read_temp();
+//	  uint32_t press = baro_read_press();
+//
+//	  memset(text, 0, sizeof(text));
+//	  snprintf(text, sizeof(text), "/*%ld.%02ld,%ld.%02ld*/\n", temp/100, temp%100, press/100, press%100);
+//	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, sizeof(text)), HAL_MAX_DELAY);
 
-	  uint8_t buf[4] = {0};
-	  buf[0] = 0xD0;
-	  if (HAL_I2C_Master_Transmit(&hi2c1, (0x76 << 1), buf, 1, HAL_MAX_DELAY) != HAL_OK) {
-		  sprintf(text, "I2C Transmit ERROR\n");
-		  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), HAL_MAX_DELAY);
-	  }
+	cnt++;
 
-	  buf[0] = 0;
-	  if (HAL_I2C_Master_Receive(&hi2c1, (0x76 << 1), buf, 1, HAL_MAX_DELAY) != HAL_OK) {
-		  sprintf(text, "I2C Transmit ERROR\n");
-		  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), HAL_MAX_DELAY);
-	  }
+//	if (cnt % 1000 < 500)
+//		signal = 5;
+//	else
+//		signal = 95;
+//
+//	signal += rand()%5;
+//
+	signal = sinf((float)cnt/500) * 50 + 50;
+	signal_noisy = signal  + (rand() % 20) - 10;
+	signal_filtered = filter(signal_noisy);
 
-	  sprintf(text, "0x%02X\n", buf[0]);
-	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), HAL_MAX_DELAY);
-
-	  HAL_Delay(1000);
+	snprintf(text, sizeof(text), "/*%ld,%ld,%ld*/\n", signal, signal_noisy, signal_filtered);
+	HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, sizeof(text)), HAL_MAX_DELAY);
 
     /* USER CODE END WHILE */
 
