@@ -24,7 +24,7 @@
 #include "baro.h"
 #include <stdio.h>	// snprintf
 #include <string.h>	// memset
-#include <math.h>	// sinf
+#include <math.h>	// sin
 #include <stdlib.h>	// rand
 
 /* USER CODE END Includes */
@@ -36,6 +36,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define countof(_a)	(sizeof(_a) / sizeof(_a[0]))
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -66,25 +68,28 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#define WIN_SIZE	200
-static int32_t filter(uint32_t data) {
-	static int32_t buff[WIN_SIZE] = {0};
-	static int32_t slider = 0, filled = 0;
-	int64_t sum = 0;
+char text[100];
 
-	buff[slider] = data;
+#define MAX_SAMPLES	500
+static int32_t filter(int32_t sample) {
+	static int32_t arr[MAX_SAMPLES] = {0};
+	static uint32_t runner = 0;
+	static uint32_t filled = 0;
 
-	if (++slider == WIN_SIZE)
-		slider = 0;
-	if (filled < (WIN_SIZE - 1)) {
-		filled++;
-	}
+	arr[runner] = sample;
 
+	if (filled < MAX_SAMPLES)
+		++filled;
+	if (++runner == MAX_SAMPLES)
+		runner = 0;
+
+	int64_t avg = 0;
 	for (uint32_t i = 0; i < filled; i++) {
-		sum += buff[(slider + i) % WIN_SIZE];
+		avg += arr[i];
 	}
+	avg /= filled;
 
-	return sum / filled;
+	return (int32_t)avg;
 }
 
 /* USER CODE END 0 */
@@ -96,8 +101,7 @@ static int32_t filter(uint32_t data) {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	char text[100] = {0};
-//	uint8_t cnt = 0;
+	uint32_t cnt = 0;
 
   /* USER CODE END 1 */
 
@@ -125,13 +129,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   if (baro_init() != BARO_OK) {
-	  snprintf(text, sizeof(text), "Error initializing baro\n");
-	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, sizeof(text)), 1000);
+	  snprintf(text, countof(text), "Error init baro\n");
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
 	  while (1) {}
   }
-
-  int32_t signal = 0, signal_noisy = 0, signal_filtered = 0;
-  uint32_t cnt = 0;
 
   /* USER CODE END 2 */
 
@@ -139,29 +140,18 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//	  int32_t temp = baro_read_temp();
-//	  uint32_t press = baro_read_press();
+//	  cnt++;
 //
-//	  memset(text, 0, sizeof(text));
-//	  snprintf(text, sizeof(text), "/*%ld.%02ld,%ld.%02ld*/\n", temp/100, temp%100, press/100, press%100);
-//	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, sizeof(text)), HAL_MAX_DELAY);
-
-	cnt++;
-
-//	if (cnt % 1000 < 500)
-//		signal = 5;
-//	else
-//		signal = 95;
+//	  int32_t signal = sin((3.14 * cnt) / 1000.0) * 50 + 50;
+//	  int32_t signal_noised = signal + (rand() % 20) - 10;
+//	  int32_t signal_filtered = filter(signal_noised);
 //
-//	signal += rand()%5;
-//
-	signal = sinf((float)cnt/500) * 50 + 50;
-	signal_noisy = signal  + (rand() % 20) - 10;
-	signal_filtered = filter(signal_noisy);
+//	  sprintf(text, "/*%ld,%ld,%ld*/\n", signal, signal_noised, signal_filtered);
 
-	snprintf(text, sizeof(text), "/*%ld,%ld,%ld*/\n", signal, signal_noisy, signal_filtered);
-	HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, sizeof(text)), HAL_MAX_DELAY);
-
+	  int32_t temp = baro_read_temp();
+	  int32_t pres = baro_read_press();
+	  snprintf(text, countof(text), "/*%ld.%02ld,%ld.%02ld*/\n", temp/100, temp%100, pres/100, pres%100);
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), 1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -186,10 +176,14 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLN = 168;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -199,12 +193,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -340,6 +334,7 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
