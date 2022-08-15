@@ -1,17 +1,10 @@
-17:19:34 **** Incremental Build of configuration Debug for project summerschool_project ****
+13:56:51 **** Incremental Build of configuration Debug for project summerschool_project ****
 make -j8 all 
-arm-none-eabi-gcc "../Core/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F401xC -c -I../Core/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -MMD -MP -MF"Core/Src/main.d" -MT"Core/Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/main.o"
-arm-none-eabi-gcc -o "summerschool_project.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Users\dell\Desktop\Ajax_school\summerschool\summerschool_project\STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="summerschool_project.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
-Finished building target: summerschool_project.elf
- 
 arm-none-eabi-size   summerschool_project.elf 
-arm-none-eabi-objdump -h -S  summerschool_project.elf  > "summerschool_project.list"
    text	   data	    bss	    dec	    hex	filename
-  10696	     20	   1788	  12504	   30d8	summerschool_project.elf
+  21596	    120	   2120	  23836	   5d1c	summerschool_project.elf
 Finished building: default.size.stdout
  
-Finished building: summerschool_project.list
- 
 
-17:19:36 Build Finished. 0 errors, 0 warnings. (took 1s.497ms)
+13:56:51 Build Finished. 0 errors, 0 warnings. (took 376ms)
 
