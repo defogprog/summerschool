@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -28,6 +29,7 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -35,6 +37,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define countof(_a) (sizeof(_a)/sizeof(_a[0]))
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,7 +55,35 @@ TIM_HandleTypeDef htim10;
 
 UART_HandleTypeDef huart1;
 
+/* Definitions for taskLEDBlink */
+osThreadId_t taskLEDBlinkHandle;
+const osThreadAttr_t taskLEDBlink_attributes = {
+  .name = "taskLEDBlink",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for taskButtonRead */
+osThreadId_t taskButtonReadHandle;
+const osThreadAttr_t taskButtonRead_attributes = {
+  .name = "taskButtonRead",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for muxUART */
+osMutexId_t muxUARTHandle;
+const osMutexAttr_t muxUART_attributes = {
+  .name = "muxUART"
+};
+/* Definitions for semButtonPressed */
+osSemaphoreId_t semButtonPressedHandle;
+osStaticSemaphoreDef_t semButtonPressedControlBlock;
+const osSemaphoreAttr_t semButtonPressed_attributes = {
+  .name = "semButtonPressed",
+  .cb_mem = &semButtonPressedControlBlock,
+  .cb_size = sizeof(semButtonPressedControlBlock),
+};
 /* USER CODE BEGIN PV */
+osMessageQueueId_t mid_MsgQueue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,6 +94,9 @@ static void MX_TIM9_Init(void);
 static void MX_TIM10_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
+void StartTaskLEDBlink(void *argument);
+void StartTaskButtonRead(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -70,29 +104,7 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 char text[100];
-#define MAX_SAMPLES  50
-static int32_t filter(int32_t sample) {
-  static int32_t arr[MAX_SAMPLES] = {0};
-  static uint32_t runner = 0;
-  static uint32_t filled = 0;
 
-  arr[runner] = sample;
-
-  if (filled < MAX_SAMPLES)
-    ++filled;
-  else {
-    if (++runner == MAX_SAMPLES)
-      runner = 0;
-  }
-
-  int64_t avg = 0;
-  for (uint32_t i = 0; i < filled; i++) {
-    avg += arr[i];
-  }
-  avg /= filled;
-
-  return (int32_t)avg;
-}
 
 /* USER CODE END 0 */
 
@@ -103,7 +115,7 @@ static int32_t filter(int32_t sample) {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	 uint32_t cnt = 0;
+	// uint32_t cnt = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -137,27 +149,69 @@ int main(void)
       while (1) {}
     }
 
-    /* USER CODE END 2 */
 
-    /* Infinite loop */
-    /* USER CODE BEGIN WHILE */
+    mid_MsgQueue = osMessageQueueNew(100, sizeof(char)*100, NULL);
+    if (mid_MsgQueue == NULL) {
+   	snprintf(text, countof(text), "Error init queue\n");
+   	HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
+    }
+
+  /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of muxUART */
+  muxUARTHandle = osMutexNew(&muxUART_attributes);
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of semButtonPressed */
+  semButtonPressedHandle = osSemaphoreNew(1, 1, &semButtonPressed_attributes);
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of taskLEDBlink */
+  taskLEDBlinkHandle = osThreadNew(StartTaskLEDBlink, NULL, &taskLEDBlink_attributes);
+
+  /* creation of taskButtonRead */
+  taskButtonReadHandle = osThreadNew(StartTaskButtonRead, NULL, &taskButtonRead_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
     while (1)
     {
-  //    cnt++;
-  //
-  //    int32_t signal = sin((3.14 * cnt) / 1000.0) * 50 + 50;
-  //    int32_t signal_noised = signal + (rand() % 20) - 10;
-  //    int32_t signal_filtered = filter(signal_noised);
-  //
-  //    sprintf(text, "/*%ld,%ld,%ld*/\n", signal, signal_noised, signal_filtered);
 
-      int32_t temp = baro_read_temp();
-      int32_t pres = baro_read_press();
-      snprintf(text, countof(text), "/*%ld.%02ld,%ld.%02ld*/\n", temp/100, temp%100, pres/100, pres%100);
-      HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), 1000);
-      /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-      /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
     }
   /* USER CODE END 3 */
 }
@@ -411,7 +465,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED1_R_GPIO_Port, LED1_R_Pin, GPIO_PIN_RESET);
@@ -441,7 +495,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : BUTTON_Pin */
   GPIO_InitStruct.Pin = BUTTON_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
 
@@ -453,14 +507,66 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
 /* USER CODE BEGIN 4 */
-
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+//{
+//  osSemaphoreRelease(semButtonPressedHandle);
+//}
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartTaskLEDBlink */
+/**
+  * @brief  Function implementing the taskLEDBlink thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartTaskLEDBlink */
+void StartTaskLEDBlink(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+
+    int32_t temp = baro_read_temp();
+    int32_t pres = baro_read_press();
+    snprintf(text, countof(text), "/*%ld.%02ld,%ld.%02ld*/\n", temp/100, temp%100, pres/100, pres%100);
+    osMessageQueuePut(mid_MsgQueue, &text, (uint8_t)1, osWaitForever);
+    osDelay(pdMS_TO_TICKS(100));
+
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartTaskButtonRead */
+/**
+* @brief Function implementing the taskButtonRead thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskButtonRead */
+void StartTaskButtonRead(void *argument)
+{
+  /* USER CODE BEGIN StartTaskButtonRead */
+	osStatus_t status;
+
+  /* Infinite loop */
+  for(;;)
+  {
+	  char str[100];
+	  status = osMessageQueueGet(mid_MsgQueue, &str, (uint8_t *)1, osWaitForever);
+	  if(status == osOK){
+		  HAL_UART_Transmit(&huart1, (uint8_t*)str, strlen(str), 1000);
+	  }
+	  osDelay(pdMS_TO_TICKS(100));
+  }
+  /* USER CODE END StartTaskButtonRead */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
