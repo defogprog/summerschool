@@ -35,8 +35,8 @@ static uint8_t *__sbrk_heap_end = NULL;
  *
  * @verbatim
  * ############################################################################
- * #  .data  #  .bss  #       newlib heap       #          MSP stack          #
- * #         #        #                         # Reserved by _Min_Stack_Size #
+ * //  .data  //  .bss  //       newlib heap       //          MSP stack          #
+ * //         //        //                         // Reserved by _Min_Stack_Size #
  * ############################################################################
  * ^-- RAM start      ^-- _end                             _estack, RAM end --^
  * @endverbatim

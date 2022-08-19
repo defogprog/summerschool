@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "baro.h"
+#include "lcd.h"
 #include <stdio.h>	// snprintf
 #include <string.h>	// memset
 #include <math.h>	// sin
@@ -52,20 +53,22 @@ ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
 
+SPI_HandleTypeDef hspi1;
+
 UART_HandleTypeDef huart1;
 
 /* Definitions for taskLEDBlink */
 osThreadId_t taskLEDBlinkHandle;
 const osThreadAttr_t taskLEDBlink_attributes = {
   .name = "taskLEDBlink",
-  .stack_size = 128 * 4,
+  .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for taskButtonRead */
 osThreadId_t taskButtonReadHandle;
 const osThreadAttr_t taskButtonRead_attributes = {
   .name = "taskButtonRead",
-  .stack_size = 128 * 4,
+  .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for muxUART */
@@ -91,6 +94,7 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_SPI1_Init(void);
 void StartTaskLEDBlink(void *argument);
 void StartTaskButtonRead(void *argument);
 
@@ -135,6 +139,7 @@ int main(void)
   MX_ADC1_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   if (baro_init() != BARO_OK) {
@@ -142,6 +147,27 @@ int main(void)
 	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
 	  while (1) {}
   }
+
+  lcd_init();
+
+  lcd_fill(ST7735_BLACK);
+  for (uint16_t p = 0; p < 100; p++) {
+	  lcd_pixel(p, p+0, ST7735_RED);
+	  lcd_pixel(p, p+1, ST7735_GREEN);
+	  lcd_pixel(p, p+2, ST7735_BLUE);
+  }
+  lcd_fill_rect(10, 10, 50, 50, ST7735_CYAN);
+  lcd_fill_rect(50, 50, 150, 150, ST7735_MAGENTA);
+  lcd_rect(5, 5, 15, 15, ST77XX_ORANGE);
+  lcd_rect(200, 200, 15, 15, ST77XX_ORANGE);
+  lcd_line(13, 19, 37, 93, ST77XX_GREEN);
+  lcd_line(13, 19, 93, 37, ST77XX_GREEN);
+  lcd_circle(22, 55, 76, ST77XX_RED);
+  lcd_fill_circle(33, 66, 19, ST77XX_BLUE);
+  lcd_print("Hello LCD!");
+  lcd_set_text_color(ST7735_CYAN);
+  lcd_set_text_bg_color(ST7735_ORANGE);
+  lcd_print("\nNew line!");
 
   /* USER CODE END 2 */
 
@@ -334,6 +360,44 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -384,12 +448,22 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin|LCD_A0_Pin, GPIO_PIN_SET);
+
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LCD_RESET_Pin LCD_CS_Pin LCD_A0_Pin */
+  GPIO_InitStruct.Pin = LCD_RESET_Pin|LCD_CS_Pin|LCD_A0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BUTTON_Pin */
   GPIO_InitStruct.Pin = BUTTON_Pin;
@@ -443,6 +517,7 @@ void StartTaskButtonRead(void *argument)
   for(;;)
   {
 	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+	  osDelay(100);
   }
   /* USER CODE END StartTaskButtonRead */
 }
