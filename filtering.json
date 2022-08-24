@@ -5,14 +5,14 @@
         {
             "datasets": [
                 {
-                    "alarm": 100,
+                    "alarm": 1020,
                     "fft": false,
                     "fftSamples": 1024,
                     "graph": true,
                     "led": false,
                     "log": false,
-                    "max": 29,
-                    "min": 27,
+                    "max": 1020,
+                    "min": 995,
                     "title": "Signal",
                     "units": "",
                     "value": "%1",
@@ -25,8 +25,8 @@
                     "graph": true,
                     "led": false,
                     "log": false,
-                    "max": 1020,
-                    "min": 995,
+                    "max": 29,
+                    "min": 27,
                     "title": "Noised",
                     "units": "",
                     "value": "%2",

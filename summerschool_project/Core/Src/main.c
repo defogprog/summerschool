@@ -58,29 +58,24 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
-/* Definitions for taskLEDBlink */
-osThreadId_t taskLEDBlinkHandle;
-const osThreadAttr_t taskLEDBlink_attributes = {
-  .name = "taskLEDBlink",
-  .stack_size = 500 * 4,
+/* Definitions for taskRD */
+osThreadId_t taskRDHandle;
+const osThreadAttr_t taskRD_attributes = {
+  .name = "taskRD",
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for taskButtonRead */
-osThreadId_t taskButtonReadHandle;
-const osThreadAttr_t taskButtonRead_attributes = {
-  .name = "taskButtonRead",
-  .stack_size = 500 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+/* Definitions for taskLD */
+osThreadId_t taskLDHandle;
+const osThreadAttr_t taskLD_attributes = {
+  .name = "taskLD",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for muxUART */
-osMutexId_t muxUARTHandle;
-const osMutexAttr_t muxUART_attributes = {
-  .name = "muxUART"
-};
-/* Definitions for muxLCD */
-osMutexId_t muxLCDHandle;
-const osMutexAttr_t muxLCD_attributes = {
-  .name = "muxLCD"
+/* Definitions for dataQueue */
+osMessageQueueId_t dataQueueHandle;
+const osMessageQueueAttr_t dataQueue_attributes = {
+  .name = "dataQueue"
 };
 /* USER CODE BEGIN PV */
 static uint8_t rx_buffer[UART_RX_BUF_SIZE];
@@ -93,11 +88,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_I2C1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
-void StartTaskLEDBlink(void *argument);
-void StartTaskButtonRead(void *argument);
+void StartTaskRD(void *argument);
+void StartTaskLD(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -105,6 +100,9 @@ void StartTaskButtonRead(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint32_t baro_data;
+uint32_t recieved_data;
+
 char text[100];
 
 int __io_getchar(void) {
@@ -128,7 +126,6 @@ int __io_putchar(int ch) {
 	HAL_UART_Transmit(&huart1, (uint8_t*)&ch, 1, 100);
 	return 0;
 }
-
 /* USER CODE END 0 */
 
 /**
@@ -161,8 +158,8 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
-  MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
@@ -175,11 +172,11 @@ int main(void)
   snprintf(text, countof(text), "Start UART RX %d\n", __LINE__);
   HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
 
-//  if (baro_init() != BARO_OK) {
-//	  snprintf(text, countof(text), "Error init baro\n");
-//	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
-//	  while (1) {}
-//  }
+  if (baro_init() != BARO_OK) {
+	  snprintf(text, countof(text), "Error init baro\n");
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
+	  while (1) {}
+  }
 
 //  for (uint16_t p = 0; p < 100; p++) {
 //	  lcd_pixel(p, p+0, ST7735_RED);
@@ -204,12 +201,6 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
-  /* Create the mutex(es) */
-  /* creation of muxUART */
-  muxUARTHandle = osMutexNew(&muxUART_attributes);
-
-  /* creation of muxLCD */
-  muxLCDHandle = osMutexNew(&muxLCD_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -223,16 +214,20 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of dataQueue */
+  dataQueueHandle = osMessageQueueNew (32, sizeof(uint32_t), &dataQueue_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of taskLEDBlink */
-  taskLEDBlinkHandle = osThreadNew(StartTaskLEDBlink, NULL, &taskLEDBlink_attributes);
+  /* creation of taskRD */
+  taskRDHandle = osThreadNew(StartTaskRD, NULL, &taskRD_attributes);
 
-  /* creation of taskButtonRead */
-  taskButtonReadHandle = osThreadNew(StartTaskButtonRead, NULL, &taskButtonRead_attributes);
+  /* creation of taskLD */
+  taskLDHandle = osThreadNew(StartTaskLD, NULL, &taskLD_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -245,7 +240,7 @@ int main(void)
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
-//  osKernelStart();
+  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -331,7 +326,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV8;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
@@ -351,7 +346,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -515,7 +510,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = LCD_RESET_Pin|LCD_CS_Pin|LCD_A0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BUTTON_Pin */
@@ -537,58 +532,44 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartTaskLEDBlink */
+/* USER CODE BEGIN Header_StartTaskRD */
 /**
-  * @brief  Function implementing the taskLEDBlink thread.
+  * @brief  Function implementing the taskRD thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartTaskLEDBlink */
-void StartTaskLEDBlink(void *argument)
+/* USER CODE END Header_StartTaskRD */
+void StartTaskRD(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
   {
-	  osMutexAcquire(muxLCDHandle, osWaitForever);
-	  lcd_fill_circle(80, 80, 30, ST77XX_BLACK);
-	  osMutexRelease(muxLCDHandle);
-	  osDelay(300);
-
-	  osMutexAcquire(muxLCDHandle, osWaitForever);
-	  lcd_fill_circle(80, 80, 30, ST77XX_RED);
-	  osMutexRelease(muxLCDHandle);
-	  osDelay(300);
+	  osMessageQueueGet(dataQueueHandle, (void*)&recieved_data, 0, osWaitForever);
+	  snprintf(text, countof(text), "/*%ld.%02ld*/\n", recieved_data/100, recieved_data%100);
+	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), HAL_MAX_DELAY);
   }
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartTaskButtonRead */
+/* USER CODE BEGIN Header_StartTaskLD */
 /**
-* @brief Function implementing the taskButtonRead thread.
+* @brief Function implementing the taskLD thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTaskButtonRead */
-void StartTaskButtonRead(void *argument)
+/* USER CODE END Header_StartTaskLD */
+void StartTaskLD(void *argument)
 {
-  /* USER CODE BEGIN StartTaskButtonRead */
-	  lcd_init();
-	  lcd_fill(ST7735_BLACK);
+  /* USER CODE BEGIN StartTaskLD */
   /* Infinite loop */
   for(;;)
   {
-	  osMutexAcquire(muxLCDHandle, osWaitForever);
-	  lcd_fill_circle(30, 30, 25, ST77XX_BLACK);
-	  osMutexRelease(muxLCDHandle);
-	  osDelay(200);
-
-	  osMutexAcquire(muxLCDHandle, osWaitForever);
-	  lcd_fill_circle(30, 30, 25, ST77XX_BLUE);
-	  osMutexRelease(muxLCDHandle);
-	  osDelay(200);
+	  baro_data = baro_read_press();
+	  osMessageQueuePut(dataQueueHandle, (void*)&baro_data, 0, 0);
+	  osDelay(pdMS_TO_TICKS(500));
   }
-  /* USER CODE END StartTaskButtonRead */
+  /* USER CODE END StartTaskLD */
 }
 
 /**
