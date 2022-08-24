@@ -61,6 +61,14 @@ void Error_Handler(void);
 #define LED_GPIO_Port GPIOC
 #define POT_Pin GPIO_PIN_0
 #define POT_GPIO_Port GPIOA
+#define LCD_RESET_Pin GPIO_PIN_3
+#define LCD_RESET_GPIO_Port GPIOA
+#define LCD_CS_Pin GPIO_PIN_4
+#define LCD_CS_GPIO_Port GPIOA
+#define LCD_SCK_Pin GPIO_PIN_5
+#define LCD_SCK_GPIO_Port GPIOA
+#define LCD_A0_Pin GPIO_PIN_6
+#define LCD_A0_GPIO_Port GPIOA
 #define BUTTON_Pin GPIO_PIN_10
 #define BUTTON_GPIO_Port GPIOB
 #define BUTTON_EXTI_IRQn EXTI15_10_IRQn
@@ -74,6 +82,8 @@ void Error_Handler(void);
 #define GREEN_SMALL_LED_GPIO_Port GPIOB
 #define RED_SMALL_LED_Pin GPIO_PIN_4
 #define RED_SMALL_LED_GPIO_Port GPIOB
+#define LCD_SDA_Pin GPIO_PIN_5
+#define LCD_SDA_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
