@@ -355,7 +355,7 @@ void* get_elem(){
 		k = beg_q;
 		beg_q = beg_q->next;
 	}
-	//q_count--;
+	  q_count--;
 	return k;
 }
 
@@ -377,15 +377,16 @@ void StartTaskDataIn(void *argument)
 	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
 	  // read data from barometer and add new element to queue
-	  osMutexAcquire(MutexForDataHandle, osWaitForever);
 
 	  int32_t temp = baro_read_temp();
 	  int32_t pres = baro_read_press();
+
+	  osMutexAcquire(MutexForDataHandle, osWaitForever);
 	  add_elem(temp, pres);
+	  osMutexRelease(MutexForDataHandle);
+
 	  snprintf(text, countof(text), "%ld element was created*/\n", q_count);
 	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), 1000);
-
-	  osMutexRelease(MutexForDataHandle);
 
 	  osDelay(pdMS_TO_TICKS(100));
 
@@ -418,14 +419,16 @@ void StartTaskDataOut(void *argument)
 	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
 	  // print result and delete element beg_q
-	  osMutexAcquire(MutexForDataHandle, osWaitForever);
 
+	  osMutexAcquire(MutexForDataHandle, osWaitForever);
 	  buf_elem = (struct q_elem*)get_elem();
+	  osMutexRelease(MutexForDataHandle);
+
 	  snprintf(text, countof(text), "/*%ld.%02ld, %ld.%02ld, %ld elements are left*/\n",
 	  buf_elem->temp/100, buf_elem->temp%100, buf_elem->pres/100, buf_elem->pres%100, q_count);
 	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strlen(text), 1000);
 
-	  osMutexRelease(MutexForDataHandle);
+	  free(buf_elem);
 
 	  osDelay(pdMS_TO_TICKS(100));
 
