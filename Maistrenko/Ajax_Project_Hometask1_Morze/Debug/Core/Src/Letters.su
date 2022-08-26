@@ -1,0 +1,16 @@
+../Core/Src/Letters.c:9:6:A	8	static
+../Core/Src/Letters.c:15:6:B	16	static
+../Core/Src/Letters.c:24:6:E	8	static
+../Core/Src/Letters.c:29:6:I	8	static
+../Core/Src/Letters.c:35:6:K	8	static
+../Core/Src/Letters.c:42:6:N	8	static
+../Core/Src/Letters.c:48:6:R	8	static
+../Core/Src/Letters.c:55:6:O	16	static
+../Core/Src/Letters.c:63:6:T	8	static
+../Core/Src/Letters.c:68:6:U	8	static
+../Core/Src/Letters.c:75:6:V	8	static
+../Core/Src/Letters.c:82:6:Y	8	static
+../Core/Src/Letters.c:90:6:Z	8	static
+../Core/Src/Letters.c:98:6:YU	8	static
+../Core/Src/Letters.c:106:6:YA	8	static
+../Core/Src/Letters.c:114:6:YOT	16	static
