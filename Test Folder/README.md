@@ -1,3 +1,0 @@
-# summerschool
-
-testing
