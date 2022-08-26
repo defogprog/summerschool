@@ -24,6 +24,9 @@
 /* USER CODE BEGIN Includes */
 #include "baro.h"
 #include "lcd.h"
+#include "wifi_at.h"
+#include "wifi_creds.h"
+#include "streams.h"
 #include <stdio.h>	// snprintf
 #include <string.h>	// memset
 #include <math.h>	// sin
@@ -39,7 +42,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define countof(_a)	(sizeof(_a) / sizeof(_a[0]))
-#define UART_RX_BUF_SIZE	200
 
 /* USER CODE END PD */
 
@@ -61,21 +63,36 @@ TIM_HandleTypeDef htim10;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart6_rx;
 
-/* Definitions for TaskLEDBlink */
-//osThreadId_t TaskLEDBlinkHandle;
-//const osThreadAttr_t TaskLEDBlink_attributes = {
-//  .name = "TaskLEDBlink",
-//  .stack_size = 128 * 4,
-//  .priority = (osPriority_t) osPriorityNormal,
-//};
-///* Definitions for TaskButtonRead */
-//osThreadId_t TaskButtonReadHandle;
-//const osThreadAttr_t TaskButtonRead_attributes = {
-//  .name = "TaskButtonRead",
-//  .stack_size = 128 * 4,
-//  .priority = (osPriority_t) osPriorityNormal,
-//};
+/* Definitions for taskWiFi */
+osThreadId_t taskWiFiHandle;
+const osThreadAttr_t taskWiFi_attributes = {
+  .name = "taskWiFi",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for taskBaro */
+osThreadId_t taskBaroHandle;
+const osThreadAttr_t taskBaro_attributes = {
+  .name = "taskBaro",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for taskDefault */
+osThreadId_t taskDefaultHandle;
+const osThreadAttr_t taskDefault_attributes = {
+  .name = "taskDefault",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for taskWiFiListen */
+osThreadId_t taskWiFiListenHandle;
+const osThreadAttr_t taskWiFiListen_attributes = {
+  .name = "taskWiFiListen",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for muxUART_LOG */
 osMutexId_t muxUART_LOGHandle;
 const osMutexAttr_t muxUART_LOG_attributes = {
@@ -102,8 +119,7 @@ const osSemaphoreAttr_t semUART_RX_WIFI_attributes = {
   .name = "semUART_RX_WIFI"
 };
 /* USER CODE BEGIN PV */
-static uint8_t rx_buffer[UART_RX_BUF_SIZE];
-static uint8_t *rx_head = rx_buffer, *rx_tail = rx_buffer;
+volatile uint32_t pressure;
 
 /* USER CODE END PV */
 
@@ -118,8 +134,10 @@ static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART6_UART_Init(void);
-//void StartTaskLEDBlink(void *argument);
-//void StartTaskButtonRead(void *argument);
+void StartTaskWiFi(void *argument);
+void StartTaskBaro(void *argument);
+void StartTaskDefault(void *argument);
+void StartTaskWiFiListen(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -128,28 +146,6 @@ static void MX_USART6_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 char text[100];
-
-int __io_getchar(void) {
-	rx_head = &rx_buffer[UART_RX_BUF_SIZE - hdma_usart1_rx.Instance->NDTR];
-
-	while (rx_tail == rx_head) {
-		rx_head = &rx_buffer[UART_RX_BUF_SIZE - hdma_usart1_rx.Instance->NDTR];
-//		osDelay(1);
-	}
-
-	uint8_t b = *rx_tail;
-
-	if (++rx_tail == (rx_buffer + UART_RX_BUF_SIZE))
-//	if (++rx_tail == &rx_buffer[UART_RX_BUF_SIZE])
-		rx_tail = rx_buffer;
-
-	return (int)b;
-}
-
-int __io_putchar(int ch) {
-	HAL_UART_Transmit(&huart1, (uint8_t*)&ch, 1, 100);
-	return 0;
-}
 
 /* USER CODE END 0 */
 
@@ -191,40 +187,6 @@ int main(void)
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  if (HAL_UART_Receive_DMA(&huart1, rx_buffer, sizeof(rx_buffer)) != HAL_OK) {
-	  snprintf(text, countof(text), "Error start UART RX %d\n", __LINE__);
-	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
-	  while (1) {}
-  }
-
-  snprintf(text, countof(text), "Start UART RX %d\n", __LINE__);
-  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
-
-//  if (baro_init() != BARO_OK) {
-//	  snprintf(text, countof(text), "Error init baro\n");
-//	  HAL_UART_Transmit(&huart1, (uint8_t*)text, strnlen(text, countof(text)), 1000);
-//	  while (1) {}
-//  }
-
-//  for (uint16_t p = 0; p < 100; p++) {
-//	  lcd_pixel(p, p+0, ST7735_RED);
-//	  lcd_pixel(p, p+1, ST7735_GREEN);
-//	  lcd_pixel(p, p+2, ST7735_BLUE);
-//  }
-//
-//  lcd_fill_rect(10, 10, 50, 50, ST7735_CYAN);
-//  lcd_fill_rect(50, 50, 150, 150, ST7735_MAGENTA);
-//  lcd_rect(5, 5, 15, 15, ST77XX_ORANGE);
-//  lcd_rect(200, 200, 15, 15, ST77XX_ORANGE);
-//  lcd_line(13, 19, 37, 93, ST77XX_GREEN);
-//  lcd_line(13, 19, 93, 37, ST77XX_GREEN);
-//  lcd_circle(22, 55, 76, ST77XX_RED);
-//  lcd_fill_circle(33, 66, 19, ST77XX_BLUE);
-//  lcd_print("Hello LCD!");
-//  lcd_set_text_color(ST7735_CYAN);
-//  lcd_set_text_bg_color(ST7735_ORANGE);
-//  lcd_print("\nNew line!");
-
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -263,20 +225,26 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of TaskLEDBlink */
-  //TaskLEDBlinkHandle = osThreadNew(StartTaskLEDBlink, NULL, &TaskLEDBlink_attributes);
+  /* creation of taskWiFi */
+  taskWiFiHandle = osThreadNew(StartTaskWiFi, NULL, &taskWiFi_attributes);
 
-  /* creation of TaskButtonRead */
- //TaskButtonReadHandle = osThreadNew(StartTaskButtonRead, NULL, &TaskButtonRead_attributes);
+  /* creation of taskBaro */
+  taskBaroHandle = osThreadNew(StartTaskBaro, NULL, &taskBaro_attributes);
+
+  /* creation of taskDefault */
+  taskDefaultHandle = osThreadNew(StartTaskDefault, NULL, &taskDefault_attributes);
+
+  /* creation of taskWiFiListen */
+  taskWiFiListenHandle = osThreadNew(StartTaskWiFiListen, NULL, &taskWiFiListen_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
+  streams_init();
+
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
-  lcd_init();
-
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -285,13 +253,9 @@ int main(void)
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  printf("This text is from printf(), %d, %s, %s, %s\n", __LINE__, __FILE__, __FUNCTION__, __PRETTY_FUNCTION__);
 
   while (1)
   {
-	  int c = __io_getchar();
-	  HAL_UART_Transmit(&huart1, (uint8_t*)&c, 1, 1000);
-
 
     /* USER CODE END WHILE */
 
@@ -614,6 +578,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA2_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
   /* DMA2_Stream2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
@@ -641,12 +608,6 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LCD_RESET_Pin|LCD_CS_Pin|LCD_A0_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GREEN_CAR_Pin|YELLOW_CAR_Pin|RED_CAR_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GREEN_MEN_Pin|YELLOW_MEN_Pin|RED_MEN_Pin, GPIO_PIN_RESET);
-
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -654,34 +615,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LCD_RESET_Pin LCD_CS_Pin LCD_A0_Pin GREEN_MEN_Pin
-                           YELLOW_MEN_Pin RED_MEN_Pin */
-  GPIO_InitStruct.Pin = LCD_RESET_Pin|LCD_CS_Pin|LCD_A0_Pin|GREEN_MEN_Pin
-                          |YELLOW_MEN_Pin|RED_MEN_Pin;
+  /*Configure GPIO pins : LCD_RESET_Pin LCD_CS_Pin LCD_A0_Pin */
+  GPIO_InitStruct.Pin = LCD_RESET_Pin|LCD_CS_Pin|LCD_A0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : BUTTON2_Pin BUTTON_Pin */
-  GPIO_InitStruct.Pin = BUTTON2_Pin|BUTTON_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : GREEN_CAR_Pin YELLOW_CAR_Pin RED_CAR_Pin */
-  GPIO_InitStruct.Pin = GREEN_CAR_Pin|YELLOW_CAR_Pin|RED_CAR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
@@ -692,59 +631,166 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartTaskLEDBlink */
+/* USER CODE BEGIN Header_StartTaskWiFi */
 /**
   * @brief  Function implementing the taskLEDBlink thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartTaskLEDBlink */
-//void StartTaskLEDBlink(void *argument)
-//{
-//  /* USER CODE BEGIN 5 */
-//  /* Infinite loop */
-//  for(;;)
-//  {
-//	  osMutexAcquire(muxLCDHandle, osWaitForever);
-//	  lcd_fill_circle(80, 80, 30, ST77XX_BLACK);
-//	  osMutexRelease(muxLCDHandle);
-//	  osDelay(300);
-//
-//	  osMutexAcquire(muxLCDHandle, osWaitForever);
-//	  lcd_fill_circle(80, 80, 30, ST77XX_RED);
-//	  osMutexRelease(muxLCDHandle);
-//	  osDelay(300);
-//  }
-//  /* USER CODE END 5 */
-//}
-//
-///* USER CODE BEGIN Header_StartTaskButtonRead */
-///**
-//* @brief Function implementing the taskButtonRead thread.
-//* @param argument: Not used
-//* @retval None
-//*/
-///* USER CODE END Header_StartTaskButtonRead */
-//void StartTaskButtonRead(void *argument)
-//{
-//  /* USER CODE BEGIN StartTaskButtonRead */
-//	  lcd_init();
-//	  lcd_fill(ST7735_BLACK);
-//  /* Infinite loop */
-//  for(;;)
-//  {
-// osMutexAcquire(muxLCDHandle, osWaitForever);
-//	  lcd_fill_circle(30, 30, 25, ST77XX_BLACK);
-//	  osMutexRelease(muxLCDHandle);
-//	  osDelay(200);
-//
-//	  osMutexAcquire(muxLCDHandle, osWaitForever);
-//	  lcd_fill_circle(30, 30, 25, ST77XX_BLUE);
-//	  osMutexRelease(muxLCDHandle);
-//	  osDelay(200);
-//  }
-//  /* USER CODE END StartTaskButtonRead */
-//}
+/* USER CODE END Header_StartTaskWiFi */
+void StartTaskWiFi(void *argument)
+	{
+	  /* USER CODE BEGIN 5 */
+	  // Wait for WiFi init
+	  osThreadFlagsWait(FLAG_WIFI_RDY, osFlagsWaitAll, osWaitForever);
+
+	  // And try to connect to AP
+	  printf("Try to connect to '%s'... ", wifi_ap);
+	  wifi_status_t st = wifi_connect_to_ap(wifi_ap, wifi_pass, pdMS_TO_TICKS(30000));
+	  if (st) {
+	    if (st == WIFI_ERR_TMT)
+	      printf("timeout\n");
+	    else if (st == WIFI_ERR_NO_AP)
+	      printf("no AP\n");
+	    else if (st == WIFI_ERR_NO_IP)
+	      printf("didn't get IP\n");
+	    else
+	      printf("ERROR\n");
+	    while (1) {
+	      osDelay(10);
+	    }
+	  }
+	  printf("OK\n");
+	  lcd_set_text_size(2, 2);
+	  lcd_set_cursor(4, 4);
+	  lcd_print(wifi_ap);
+
+	  uint32_t ip[4], mac[6];
+	  if (wifi_get_own_ip(ip, mac) == WIFI_OK) {
+	    printf("IP: %lu.%lu.%lu.%lu, MAC: %02lX:%02lX:%02lX:%02lX:%02lX:%02lX\n",
+	        ip[0], ip[1], ip[2], ip[3],
+	        mac[0], mac[1], mac[2],
+	        mac[3], mac[4], mac[5]);
+	    sprintf(text, "%ld.%ld.%ld.%ld", ip[0], ip[1], ip[2], ip[3]);
+	    lcd_set_text_size(2, 2);
+	    lcd_set_cursor(3, 2);
+	    lcd_print(text);
+	  } else {
+	    sprintf(text, "none");
+	    lcd_set_text_size(2, 2);
+	    lcd_set_cursor(3, 2);
+	    lcd_print(text);
+	  }
+
+	  wifi_server(1, 80);
+	  lcd_set_text_size(2, 2);
+	  lcd_set_cursor(0, 5);
+	  lcd_print("SRV START");
+
+	  /* Infinite loop */
+	  for(;;) {
+	    osDelay(pdMS_TO_TICKS(1000));
+	  }
+	  /* USER CODE END 5 */
+	}
+
+/* USER CODE BEGIN Header_StartTaskBaro */
+/**
+* @brief Function implementing the taskBaro thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskBaro */
+void StartTaskBaro(void *argument)
+{
+  /* USER CODE BEGIN StartTaskBaro */
+  osThreadFlagsWait(FLAG_BARO_RDY, osFlagsNoClear | osFlagsWaitAny, osWaitForever);
+  lcd_set_text_size(1, 1);
+  lcd_set_cursor(0, 12);
+  lcd_print("Pressure:");
+
+  /* Infinite loop */
+  for(;;) {
+    pressure = baro_read_press();
+    sprintf(text, "%ld.%02ld hPa\n      ", pressure/100, pressure%100);
+    lcd_set_text_size(1, 1);
+    lcd_set_cursor(10, 12);
+    lcd_print(text);
+    osDelay(pdMS_TO_TICKS(1000));
+  }
+  /* USER CODE END StartTaskBaro */
+}
+
+/* USER CODE BEGIN Header_StartTaskDefault */
+/**
+* @brief Function implementing the taskDefault thread.
+* @param argument: Not used
+* @retval None
+*/
+void StartTaskDefault(void *argument)
+{
+	/* USER CODE BEGIN StartTaskDefault */
+
+	  lcd_init();
+	  lcd_fill(ST7735_BLUE);
+	  lcd_set_text_bg_color(ST7735_BLUE);
+	  lcd_set_text_color(ST7735_YELLOW);
+	  //lcd_set_text_size(2, 2);
+	  lcd_set_cursor(0, 0);
+	  lcd_print("Init LCD... ");
+	  lcd_print("Baro:");
+	  lcd_set_cursor(0, 2);
+	  lcd_print("WiFi:");
+	  lcd_set_cursor(0, 3);
+	  lcd_print("IP:");
+	  lcd_set_cursor(0, 5);
+	  lcd_print("AP:");
+	  lcd_print("OK\n");
+
+	  lcd_print("Init Barometer... ");
+	  baro_stat_t b_st = baro_init();
+	  //lcd_set_text_size(2, 2);
+	  lcd_set_cursor(5, 12);
+	  if (b_st) {
+	    lcd_print("FAIL");
+	    printf("ERROR\n");
+	  } else {
+	    lcd_print("OK");
+	    printf("OK\n");
+	    osThreadFlagsSet(taskBaroHandle, FLAG_BARO_RDY);
+	  }
+
+	  lcd_print("Init WIFI... ");
+	  wifi_status_t w_st = wifi_init();
+	  //lcd_set_text_size(2, 2);
+	  lcd_set_cursor(6, 15);
+	  if (w_st) {
+	    lcd_print("FAIL");
+	    if (w_st == WIFI_ERR_TMT)
+	      printf("timeout\n");
+	    else
+	      printf("ERROR\n");
+
+	  } else {
+	    printf("OK\n");
+	    lcd_print("OK");
+	    osThreadFlagsSet(taskWiFiHandle, FLAG_WIFI_RDY);
+	  }
+
+	  /* Infinite loop */
+	  for(;;) {
+	    osDelay(pdMS_TO_TICKS(1000));
+	  }
+	  /* USER CODE END StartTaskDefault */
+	}
+
+/* USER CODE BEGIN Header_StartTaskWiFiListen */
+/**
+* @brief Function implementing the taskWiFiListen thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskWiFiListen */
 
 /**
   * @brief  This function is executed in case of error occurrence.

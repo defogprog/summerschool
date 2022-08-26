@@ -8,6 +8,9 @@
 #ifndef INC_WIFI_CREDS_H_
 #define INC_WIFI_CREDS_H_
 
+#ifndef INC_WIFI_CREDS_H_
+#define INC_WIFI_CREDS_H_
+
 extern char wifi_ap[];
 extern char wifi_pass[];
 

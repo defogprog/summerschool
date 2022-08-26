@@ -71,26 +71,9 @@ void Error_Handler(void);
 #define LCD_A0_GPIO_Port GPIOA
 #define LCD_SDA_Pin GPIO_PIN_7
 #define LCD_SDA_GPIO_Port GPIOA
-#define BUTTON2_Pin GPIO_PIN_2
-#define BUTTON2_GPIO_Port GPIOB
-#define BUTTON2_EXTI_IRQn EXTI2_IRQn
-#define BUTTON_Pin GPIO_PIN_10
-#define BUTTON_GPIO_Port GPIOB
-#define BUTTON_EXTI_IRQn EXTI15_10_IRQn
-#define GREEN_CAR_Pin GPIO_PIN_12
-#define GREEN_CAR_GPIO_Port GPIOB
-#define YELLOW_CAR_Pin GPIO_PIN_13
-#define YELLOW_CAR_GPIO_Port GPIOB
-#define RED_CAR_Pin GPIO_PIN_14
-#define RED_CAR_GPIO_Port GPIOB
-#define GREEN_MEN_Pin GPIO_PIN_8
-#define GREEN_MEN_GPIO_Port GPIOA
-#define YELLOW_MEN_Pin GPIO_PIN_9
-#define YELLOW_MEN_GPIO_Port GPIOA
-#define RED_MEN_Pin GPIO_PIN_10
-#define RED_MEN_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
-
+#define FLAG_WIFI_RDY  0x0001
+#define FLAG_BARO_RDY  0x0002
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
