@@ -1,3 +1,0 @@
-# summerschool
-
-Test is successfull
