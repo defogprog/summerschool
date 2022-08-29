@@ -1,4 +1,0 @@
-../Core/Src/Morse.c:34:6:Detect_Letter	88	static
-../Core/Src/Morse.c:65:6:Short_Signal	24	static
-../Core/Src/Morse.c:99:6:Long_Signal	24	static
-../Core/Src/Morse.c:125:6:Morse_Simulator	24	static
