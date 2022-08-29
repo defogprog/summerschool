@@ -1,5 +1,0 @@
-../Core/Src/Phrases.c:10:6:greet	8	static
-../Core/Src/Phrases.c:30:6:task	8	static
-../Core/Src/Phrases.c:78:6:job	24	static
-../Core/Src/Phrases.c:89:6:done	8	static
-../Core/Src/Phrases.c:112:6:bye	8	static
